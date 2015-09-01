@@ -15,6 +15,9 @@ OUTPUT_PATH = "#{ENV['PWD']}/export/_posts/"  # THE LOCATION OF THE SAVED POSTS 
 ORIGINAL_DOMAIN = "http://perpetuallybeta.com"  #  THE DOMAIN OF THE WEBSITE #
 SEPARATE_CATEGORIES_FROM_TAGS = false
 CONVERT_FROM_HTML = false
+MARKDOWN_EXT = ".md"
+FIX_OVERLAP = true # fix for overlapping sanitized name
+
 
 class Parser
 
@@ -35,11 +38,23 @@ class Parser
 
       # Parsing Post Frontmatter
       # ------------------------------------
+      
+      original_url = post.css("link").text
+      
       title = post.css("title").text
       title.gsub!(":", "-")
-      post_date = post.xpath("wp:post_date").first.inner_text
-      created_at = Date.parse(post_date).to_s
-
+      begin
+      	post_date = post.xpath("wp:post_date").first.inner_text
+      rescue Exception => e
+        p e
+      end
+      
+      if post_date.nil?
+        created_at = "1970-01-01 00:00:00"
+      else
+      	created_at = Date.parse(post_date).to_s
+      end
+      
       tags = ""
       categories = ""
       category_xml = post.xpath("category")
@@ -85,13 +100,14 @@ class Parser
       content.gsub! /\n\s*\n/, "\n\n" # collapse newlines
 
       if !(created_at.nil? || title.nil? || post_date.nil? || content.nil?)
-        output_filename = OUTPUT_PATH + created_at + "-" + sanitize_filename(title) + ".markdown"
+        output_filename = OUTPUT_PATH + created_at + "-" + sanitize_filename(title) + rand_hex_suffix(FIX_OVERLAP) + MARKDOWN_EXT
         puts output_filename
 
         file_content = "---" + "\n"
         file_content += "title: " + title + "\n"
-        file_content += "date: " + post_date + "\n"
+        file_content += "date: " + created_at + "\n"
         file_content += "tags: " + tags + "\n"
+        file_content += "orginal_url: " + original_url + "\n"
         if SEPARATE_CATEGORIES_FROM_TAGS == true
           file_content += "categories: " + categories + "\n" unless categories.empty?
         end
@@ -112,6 +128,11 @@ class Parser
             .gsub(/(^|\b\s)\s+($|\s?\b)/, '\\1\\2')
             .gsub(/\s+/, '_')
             .downcase
+  end
+
+  def self.rand_hex_suffix(add=false)
+    require "securerandom"
+    return add ? "_" + SecureRandom.hex(2) : ""
   end
 
 end
